@@ -14,6 +14,9 @@ class Sender:
         self.socket.bind(('0.0.0.0', 0))
         self.waiting = False
 
+        self.seq = 1 #number of readen bytes acknowledged by the receiver
+        self.window = DATA_SIZE*2 #space available in the receiver to read
+
     def log(self, message):
         sys.stderr.write(message + "\n")
         sys.stderr.flush()
@@ -27,20 +30,37 @@ class Sender:
             socks = select.select(sockets, [], [], 0.1)[0]
             for conn in socks:
                 if conn == self.socket:
+
+                    #read the response of the receiver
                     k, addr = conn.recvfrom(65535)
                     msg = k.decode('utf-8')
 
-                    self.log("Received message '%s'" % msg)
-                    self.waiting = False
-                elif conn == sys.stdin:
-                    data = sys.stdin.read(DATA_SIZE)
-                    if len(data) == 0:
-                        self.log("All done!")
-                        sys.exit(0)
+                    json_msg = json.loads(msg)
 
-                    msg = {"type": "msg", "data": data}
-                    self.log("Sending message '%s'" % msg)
-                    self.send(msg)
+
+
+                    self.log("Received message '%s'" % msg)
+
+                    self.window += DATA_SIZE
+                    self.waiting = False
+
+                elif conn == sys.stdin:
+
+                    #read the data that must be transmited to the receiver
+                    while self.window >= DATA_SIZE:
+                        data = sys.stdin.read(DATA_SIZE)
+                        
+                        if len(data) == 0:
+                            self.log("All done!")
+                            sys.exit(0)
+
+                        msg = {"type": "msg", "data": data}
+                        self.log("Sending message '%s'" % msg)
+                        self.send(msg)
+
+                        self.window -= DATA_SIZE
+
+                    #when there is no window available, wait for ACK
                     self.waiting = True
 
         return
