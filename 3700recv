@@ -11,38 +11,39 @@ class Receiver:
         self.port = self.socket.getsockname()[1]
         self.log("Bound to port %d" % self.port)
 
-        #set to save all the seq we received, to avoid duplicate packets with O(1) complexity
+        # set to save all the seq we received, to avoid duplicate packets with O(1) complexity
         self.seq_set = set()
-        #queue of packets that arrive at the wrong time
+        # queue of packets that arrive at the wrong time
         self.queue = []
-        #last seq read in the right order
+        # last seq read in the right order
         self.seq_number = 0
 
         self.remote_host = None
         self.remote_port = None
 
     def send(self, message):
+        """Send message"""
         self.socket.sendto(json.dumps(message).encode('utf-8'), (self.remote_host, self.remote_port))
 
     def log(self, message):
+        """Print messsages to STDERR"""
         sys.stderr.write(message + "\n")
         sys.stderr.flush()
 
     def add_elem_to_queue(self, msg):
-        # This function adds a new element in the right postion of the queue
+        """Add a new element in the right postion of the queue"""
         exit = False
-        i=0
+        i = 0
         while not exit:
-            if i==len(self.queue):
+            if i == len(self.queue):
                 self.queue.append(msg)
                 exit = True
             elif msg['seq'] < self.queue[i]['seq']:
                 self.queue.insert(i, msg)
                 exit = True
             else:
-                i+=1
-
-        self.log("queue: " + ' '.join(map(str,self.queue)))
+                i += 1
+        # self.log("queue: " + ' '.join(map(str, self.queue)))
 
     def run(self):
         while True:
@@ -61,36 +62,36 @@ class Receiver:
                 if msg['seq'] not in self.seq_set:
                     self.seq_set.add(msg['seq'])
 
-                    # check if it is in order
+                    # Check we received the  messages in order
                     if msg['seq'] == self.seq_number:
                         # Print out the data to stdout
-                        self.log("printed message with seq " + str(msg["seq"]))
+                        self.log("Printed message with seq " + str(msg["seq"]))
                         print(msg["data"], end='', flush=True)
-                        self.seq_number += len(msg['data'].encode('utf-8'))
+                        self.seq_number += 1  # len(msg['data'].encode('utf-8'))
 
                         exit = False
-                        #we check if we have the next one in a loop, in case there's more than one available
+                        # We check if we have the next one in a loop, in case there's more than one available
                         while not exit and len(self.queue) > 0:
-                            #we maintain our queue in order so we just need to check the first elem
+                            # we maintain our queue in order so we just need to check the first elem
                             if self.queue[0]['seq'] == self.seq_number:
                                 self.log("printed message with seq " + str(self.queue[0]["seq"]))
                                 print(self.queue[0]["data"], end='', flush=True)
-                                self.seq_number += len(self.queue[0]['data'])
+                                self.seq_number += 1
                                 self.queue.pop(0)
                             else:
-                                exit=True
+                                exit = True
 
                     else:
-                        #add element to the queue
+                        # add element to the queue
                         self.add_elem_to_queue(msg)
 
-                    # Always send back an ack
-                    self.send({"type": "ack", "seq_ACK" : msg['seq']})
+                    # Always send an ACK back
+                    self.send({"type": "ack", "seq_ACK": msg['seq']})
 
                 else:
                     self.log("Received duplicated packet with seq = %s" % msg['seq'])
 
-        return
+        # return
 
 
 if __name__ == "__main__":
