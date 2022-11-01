@@ -15,13 +15,13 @@ class Sender:
         self.waiting = False
 
         self.seq_ACK_set = set()
-        self.ACK_counter = 0
         self.all_sent = False
 
         self.seq = 0  # number of readen bytes acknowledged by the receiver
         self.window = DATA_SIZE * 3  # space available in the receiver to read
 
         self.sent_packets = {}
+        self.ACKs_left = [] # this list contains all the seq of ACKs pending to be received
 
     def log(self, message):
         """Print messages to STDERR"""
@@ -36,7 +36,25 @@ class Sender:
         """Run the program"""
         while True:
             sockets = [self.socket, sys.stdin] if not self.waiting else [self.socket]
-            socks = select.select(sockets, [], [], 0.1)[0]
+
+            #set timeout to 1s
+            socks = select.select(sockets, [], [], 2)[0]
+
+            if self.all_sent and len(self.ACKs_left) == 0:
+                self.log("All ACK received, exiting")
+                sys.exit(0)
+            
+            self.log("SOCKS: " + str(socks))
+            if self.waiting and self.socket not in socks:
+                self.log("HA ENTRADO")
+                self.log(str(self.ACKs_left))
+                #timeout has happened
+                for seq in self.ACKs_left:
+                    msg = {"type": "msg", "seq": seq, "data": self.sent_packets[seq]}
+                    self.log("Resending message '%s'" % msg)
+                    self.send(msg)
+                    self.window -= DATA_SIZE
+
             for conn in socks:
                 if conn == self.socket:
                     # Read the response of the receiver
@@ -49,43 +67,37 @@ class Sender:
                         self.seq_ACK_set.add(msg['seq_ACK'])
                         # Since it was acknowledged we can enlarge the window size
                         self.window += DATA_SIZE
-                        # Not waiting for an ACK
-                        self.waiting = False
-                        self.ACK_counter -= 1
+                        self.ACKs_left.remove(msg['seq_ACK'])
 
-                        if self.all_sent and self.ACK_counter == 0:
-                            self.log("All ACK received, exiting")
-                            sys.exit(0)
-                        else:
-                            self.log("Received duplicated ACK with seq = %s" % msg['seq_ACK'])
-                    """else:
-                        # Resend last packet
-                        self.send(self.sent_packets[list(self.sent_packets)[-1]])"""
+                        self.log("ACKS LEFT: " + str(self.ACKs_left))
+                        if len(self.ACKs_left)==0:
+                            # Not waiting for an ACK
+                            self.waiting = False
+                    else:
+                        self.log("Received duplicated ACK with seq = %s" % msg['seq_ACK'])
 
                 elif conn == sys.stdin:
                     exit = False
                     # Read the data that must be transmited to the receiver
                     while self.window >= DATA_SIZE and not exit:
                         data = sys.stdin.read(DATA_SIZE)
-                        start = time.time()
                         # Check if EOF
                         if len(data) == 0:
                             exit = True
                             self.all_sent = True
                             self.log("All sent!")
                         else:
-
                             msg = {"type": "msg", "seq": self.seq, "data": data}
                             self.sent_packets[self.seq] = msg
                             self.log("Sending message '%s'" % msg)
                             self.send(msg)
-                            self.ACK_counter += 1
+                            self.ACKs_left.append(self.seq)
 
                             self.seq += 1
                             self.window -= DATA_SIZE
 
-                    # when there is no window available, wait for ACK
-                    self.waiting = True
+                            # when there is no window available, wait for ACK
+                            self.waiting = True
 
                 self.log(str(self.waiting))
 

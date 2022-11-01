@@ -91,6 +91,8 @@ class Receiver:
 
                 else:
                     self.log("Received duplicated packet with seq = %s" % msg['seq'])
+                    self.send({"type": "ack", "seq_ACK": msg['seq']})
+
 
         # return
 
