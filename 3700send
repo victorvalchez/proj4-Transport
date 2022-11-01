@@ -21,7 +21,7 @@ class Sender:
         self.window = DATA_SIZE * 3  # space available in the receiver to read
 
         self.sent_packets = {}
-        self.ACKs_left = [] # this list contains all the seq of ACKs pending to be received
+        self.ACKs_left = []  # this list contains all the seq of ACKs pending to be received
 
     def log(self, message):
         """Print messages to STDERR"""
@@ -37,23 +37,26 @@ class Sender:
         while True:
             sockets = [self.socket, sys.stdin] if not self.waiting else [self.socket]
 
-            #set timeout to 1s
-            socks = select.select(sockets, [], [], 2)[0]
+            # set timeout to 1s
+            socks = select.select(sockets, [], [], 1)[0]
+            recevied = time.time()
+            self.log("All sent: " + str(self.all_sent))
+            self.log("Window: " + str(self.window))
 
             if self.all_sent and len(self.ACKs_left) == 0:
                 self.log("All ACK received, exiting")
                 sys.exit(0)
-            
+
             self.log("SOCKS: " + str(socks))
-            if self.waiting and self.socket not in socks:
+            if self.waiting:
                 self.log("HA ENTRADO")
                 self.log(str(self.ACKs_left))
-                #timeout has happened
                 for seq in self.ACKs_left:
-                    msg = {"type": "msg", "seq": seq, "data": self.sent_packets[seq]}
-                    self.log("Resending message '%s'" % msg)
-                    self.send(msg)
-                    self.window -= DATA_SIZE
+                    if recevied - self.sent_packets[seq][1] > 1:
+                        # timeout has happened
+                        msg = {"type": "msg", "seq": seq, "data": self.sent_packets[seq][0]}
+                        self.log("Resending message '%s'" % msg)
+                        self.send(msg)
 
             for conn in socks:
                 if conn == self.socket:
@@ -70,7 +73,7 @@ class Sender:
                         self.ACKs_left.remove(msg['seq_ACK'])
 
                         self.log("ACKS LEFT: " + str(self.ACKs_left))
-                        if len(self.ACKs_left)==0:
+                        if len(self.ACKs_left) == 0:
                             # Not waiting for an ACK
                             self.waiting = False
                     else:
@@ -88,7 +91,7 @@ class Sender:
                             self.log("All sent!")
                         else:
                             msg = {"type": "msg", "seq": self.seq, "data": data}
-                            self.sent_packets[self.seq] = msg
+                            self.sent_packets[self.seq] = (msg, time.time())
                             self.log("Sending message '%s'" % msg)
                             self.send(msg)
                             self.ACKs_left.append(self.seq)
@@ -96,8 +99,8 @@ class Sender:
                             self.seq += 1
                             self.window -= DATA_SIZE
 
-                            # when there is no window available, wait for ACK
-                            self.waiting = True
+                    # when there is no window available, wait for ACK
+                    self.waiting = True
 
                 self.log(str(self.waiting))
 
