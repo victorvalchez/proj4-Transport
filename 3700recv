@@ -85,7 +85,8 @@ class Receiver:
                         # add element to the queue
                         self.add_elem_to_queue(msg)
 
-                    # Always send an ACK back
+                    # Always send an ACK bac
+                    self.log("RECV | Sending message {type: ack, seq_ACK: " + str(msg['seq']) + "}")
                     self.send({"type": "ack", "seq_ACK": msg['seq']})
 
                 else:

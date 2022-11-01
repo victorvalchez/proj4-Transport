@@ -21,7 +21,7 @@ class Sender:
         self.seq = 0  # number of readen bytes acknowledged by the receiver
         self.window = DATA_SIZE * 3  # space available in the receiver to read
 
-        self.sent_packets = []
+        self.sent_packets = {}
 
     def log(self, message):
         """Print messages to STDERR"""
@@ -39,46 +39,44 @@ class Sender:
             socks = select.select(sockets, [], [], 0.1)[0]
             for conn in socks:
                 if conn == self.socket:
-                    try:
-                        # Read the response of the receiver
-                        k, addr = conn.recvfrom(65535)
-                    except conn.timeout:
-                        k = None
-                    if k is not None:
-                        msg = json.loads(k.decode('utf-8'))
-                        self.log("Received message '%s'" % msg)
+                    # Read the response of the receiver
+                    k, addr = conn.recvfrom(65535)
+                    msg = json.loads(k.decode('utf-8'))
+                    self.log("Received message '%s'" % msg)
 
-                        # First we check that it is not a duplicate ACK
-                        if msg['seq_ACK'] not in self.seq_ACK_set:
-                            self.seq_ACK_set.add(msg['seq_ACK'])
-                            # Since it was acknowledged we can enlarge the window size
-                            self.window += DATA_SIZE
-                            # Not waiting for an ACK
-                            self.waiting = False
-                            self.ACK_counter -= 1
+                    # First we check that it is not a duplicate ACK
+                    if msg['seq_ACK'] not in self.seq_ACK_set:
+                        self.seq_ACK_set.add(msg['seq_ACK'])
+                        # Since it was acknowledged we can enlarge the window size
+                        self.window += DATA_SIZE
+                        # Not waiting for an ACK
+                        self.waiting = False
+                        self.ACK_counter -= 1
 
-                            if self.all_sent and self.ACK_counter == 0:
-                                self.log("All ACK received, exiting")
-                                sys.exit(0)
+                        if self.all_sent and self.ACK_counter == 0:
+                            self.log("All ACK received, exiting")
+                            sys.exit(0)
                         else:
                             self.log("Received duplicated ACK with seq = %s" % msg['seq_ACK'])
-                    else:
+                    """else:
                         # Resend last packet
-                        self.send(self.sent_packets[-1])
+                        self.send(self.sent_packets[list(self.sent_packets)[-1]])"""
 
                 elif conn == sys.stdin:
                     exit = False
                     # Read the data that must be transmited to the receiver
                     while self.window >= DATA_SIZE and not exit:
                         data = sys.stdin.read(DATA_SIZE)
+                        start = time.time()
                         # Check if EOF
                         if len(data) == 0:
                             exit = True
                             self.all_sent = True
                             self.log("All sent!")
                         else:
+
                             msg = {"type": "msg", "seq": self.seq, "data": data}
-                            self.sent_packets.append(msg)
+                            self.sent_packets[self.seq] = msg
                             self.log("Sending message '%s'" % msg)
                             self.send(msg)
                             self.ACK_counter += 1
@@ -88,6 +86,8 @@ class Sender:
 
                     # when there is no window available, wait for ACK
                     self.waiting = True
+
+                self.log(str(self.waiting))
 
         # return
 
