@@ -32,50 +32,53 @@ class Sender:
         """Send a message to the host"""
         self.socket.sendto(json.dumps(message).encode('utf-8'), (self.host, self.remote_port))
 
-    
     def compute_checksum_sender(self, msg):
-        
-        #UDP devides the packet in 16-bit words
+        byte_arr = bytearray(str(msg), 'utf-8')
+        res = []
+        for byte in byte_arr:
+            binary_rep = bin(byte)  # convert to binary representation
+            res.append(binary_rep[2:])  # remove prefix "0b" and add to list
+        msg = ''.join(msg)  # join all the binaries of res list
+        # UDP devides the packet in 16-bit words
         sum = 0
-        i=16
-        while i<len(msg):
-            sum += int(msg[i-16:i], 2)
-            i+=16
+        i = 16
+        while i < len(msg):
+            sum += int(msg[i - 16:i], 2)
+            i += 16
 
         sum = bin(sum)
 
         # Add the overflow bits
-        if(len(sum) > 16):
-            x = len(sum)-16
-            sum = bin(int(sum[0:x], 2)+int(sum[x:], 2))[2:]
-        if(len(sum) < 16):
-            sum = '0'*(16-len(sum))+sum
+        if len(sum) > 16:
+            x = len(sum) - 16
+            sum = bin(int(sum[0:x], 2) + int(sum[x:], 2))[2:]
+        if len(sum) < 16:
+            sum = '0' * (16 - len(sum)) + sum
 
         # Calculate the complement of sum
         result = ''
         for i in sum:
-            if(i == '1'):
+            if i == '1':
                 result += '0'
             else:
                 result += '1'
 
         return result
 
-
     def check_checksum(self, send, receive):
-        sum=bin(int(send,2)+int(receive,2))[2:]
- 
+        sum = bin(int(send, 2) + int(receive, 2))[2:]
+
         # Finding the sum of checksum and received checksum
-        result=''
+        result = ''
         for i in sum:
-            if(i == '1'):
+            if (i == '1'):
                 result += '0'
             else:
                 result += '1'
-        
+
         # If sum = 0, No error is detected
-        return int(result,2) == 0
-    
+        return int(result, 2) == 0
+
     def run(self):
         """Run the program"""
         while True:
@@ -96,8 +99,8 @@ class Sender:
                 self.log("HA ENTRADO")
                 self.log(str(self.ACKs_left))
                 for seq in self.ACKs_left:
-                    self.log("Received: " + str(recevied))
-                    self.log("Started: " + str(self.sent_packets[seq][1]))
+                    self.log("Received time: " + str(recevied))
+                    self.log("Started sending: " + str(self.sent_packets[seq][1]))
                     if recevied - self.sent_packets[seq][1] > 1:
                         # timeout has happened
                         msg = {"type": "msg", "seq": seq, "data": self.sent_packets[seq][0]}
@@ -141,7 +144,10 @@ class Sender:
                             self.all_sent = True
                             self.log("All sent!")
                         else:
+                            # TODO meter el checksum y el json en una lista para coger solo el json cuando hacemos
+                            #  checksum de un ack
                             msg = {"type": "msg", "seq": self.seq, "data": data}
+                            msg["checksum"] = self.compute_checksum_sender(msg)
                             self.sent_packets[self.seq] = (msg['data'], time.time())
                             self.log("Sending message '%s'" % msg)
                             self.send(msg)
