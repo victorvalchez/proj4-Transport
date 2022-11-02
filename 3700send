@@ -38,7 +38,7 @@ class Sender:
             sockets = [self.socket, sys.stdin] if not self.waiting else [self.socket]
 
             # set timeout to 1s
-            socks = select.select(sockets, [], [], 1)[0]
+            socks = select.select(sockets, [], [], 0.1)[0]
             recevied = time.time()
             self.log("All sent: " + str(self.all_sent))
             self.log("Window: " + str(self.window))
@@ -52,6 +52,8 @@ class Sender:
                 self.log("HA ENTRADO")
                 self.log(str(self.ACKs_left))
                 for seq in self.ACKs_left:
+                    self.log("Received: " + str(recevied))
+                    self.log("Started: " + str(self.sent_packets[seq][1]))
                     if recevied - self.sent_packets[seq][1] > 1:
                         # timeout has happened
                         msg = {"type": "msg", "seq": seq, "data": self.sent_packets[seq][0]}
@@ -62,28 +64,33 @@ class Sender:
                 if conn == self.socket:
                     # Read the response of the receiver
                     k, addr = conn.recvfrom(65535)
-                    msg = json.loads(k.decode('utf-8'))
-                    self.log("Received message '%s'" % msg)
+                    try:
+                        msg = json.loads(k.decode('utf-8'))
+                        self.log("Received message '%s'" % msg)
 
-                    # First we check that it is not a duplicate ACK
-                    if msg['seq_ACK'] not in self.seq_ACK_set:
-                        self.seq_ACK_set.add(msg['seq_ACK'])
-                        # Since it was acknowledged we can enlarge the window size
-                        self.window += DATA_SIZE
-                        self.ACKs_left.remove(msg['seq_ACK'])
+                        # First we check that it is not a duplicate ACK
+                        if msg['seq_ACK'] not in self.seq_ACK_set:
+                            self.seq_ACK_set.add(msg['seq_ACK'])
+                            # Since it was acknowledged we can enlarge the window size
+                            self.window += DATA_SIZE
+                            self.ACKs_left.remove(msg['seq_ACK'])
 
-                        self.log("ACKS LEFT: " + str(self.ACKs_left))
-                        if len(self.ACKs_left) == 0:
-                            # Not waiting for an ACK
-                            self.waiting = False
-                    else:
-                        self.log("Received duplicated ACK with seq = %s" % msg['seq_ACK'])
+                            self.log("ACKS LEFT: " + str(self.ACKs_left))
+                            if len(self.ACKs_left) == 0:
+                                # Not waiting for an ACK
+                                self.waiting = False
+                        else:
+                            self.log("Received duplicated ACK with seq = %s" % msg['seq_ACK'])
+
+                    except (ValueError, KeyError, TypeError):
+                        self.log("Received corrupt packet")
 
                 elif conn == sys.stdin:
                     exit = False
                     # Read the data that must be transmited to the receiver
                     while self.window >= DATA_SIZE and not exit:
                         data = sys.stdin.read(DATA_SIZE)
+                        self.log(str(type(data)))
                         # Check if EOF
                         if len(data) == 0:
                             exit = True
@@ -91,7 +98,7 @@ class Sender:
                             self.log("All sent!")
                         else:
                             msg = {"type": "msg", "seq": self.seq, "data": data}
-                            self.sent_packets[self.seq] = (msg, time.time())
+                            self.sent_packets[self.seq] = (msg['data'], time.time())
                             self.log("Sending message '%s'" % msg)
                             self.send(msg)
                             self.ACKs_left.append(self.seq)
