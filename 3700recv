@@ -45,6 +45,50 @@ class Receiver:
                 i += 1
         # self.log("queue: " + ' '.join(map(str, self.queue)))
 
+
+    def compute_checksum_reciever(self, msg):
+        #compute checksum of the recieved packet
+
+        #UDP devides the packet in 16-bit words
+        sum = 0
+        i=16
+        while i<len(msg):
+            sum += int(msg[i-16:i], 2)
+            i+=16
+
+        sum = bin(sum)
+
+        # Add the overflow bits
+        if(len(sum) > 16):
+            x = len(sum)-16
+            sum = bin(int(sum[0:x], 2)+int(sum[x:], 2))[2:]
+
+        # Calculating the complement of sum
+        checksum = ''
+        for i in sum:
+            if(i == '1'):
+                checksum += '0'
+            else:
+                checksum += '1'
+        return checksum
+
+
+    def check_checksum(self, send, receive):
+        sum=bin(int(send,2)+int(receive,2))[2:]
+ 
+        # Finding the sum of checksum and received checksum
+        result=''
+        for i in sum:
+            if(i == '1'):
+                result += '0'
+            else:
+                result += '1'
+        
+        # If sum = 0, No error is detected
+        return int(result,2) == 0
+
+
+
     def run(self):
         while True:
             socks = select.select([self.socket], [], [])[0]

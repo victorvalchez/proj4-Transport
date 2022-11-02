@@ -32,6 +32,50 @@ class Sender:
         """Send a message to the host"""
         self.socket.sendto(json.dumps(message).encode('utf-8'), (self.host, self.remote_port))
 
+    
+    def compute_checksum_sender(self, msg):
+        
+        #UDP devides the packet in 16-bit words
+        sum = 0
+        i=16
+        while i<len(msg):
+            sum += int(msg[i-16:i], 2)
+            i+=16
+
+        sum = bin(sum)
+
+        # Add the overflow bits
+        if(len(sum) > 16):
+            x = len(sum)-16
+            sum = bin(int(sum[0:x], 2)+int(sum[x:], 2))[2:]
+        if(len(sum) < 16):
+            sum = '0'*(16-len(sum))+sum
+
+        # Calculate the complement of sum
+        result = ''
+        for i in sum:
+            if(i == '1'):
+                result += '0'
+            else:
+                result += '1'
+
+        return result
+
+
+    def check_checksum(self, send, receive):
+        sum=bin(int(send,2)+int(receive,2))[2:]
+ 
+        # Finding the sum of checksum and received checksum
+        result=''
+        for i in sum:
+            if(i == '1'):
+                result += '0'
+            else:
+                result += '1'
+        
+        # If sum = 0, No error is detected
+        return int(result,2) == 0
+    
     def run(self):
         """Run the program"""
         while True:
