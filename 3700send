@@ -18,14 +18,14 @@ class Sender:
         self.all_sent = False
 
         self.seq = 0  # number of readen bytes acknowledged by the receiver
-        self.window = DATA_SIZE * 3  # space available in the receiver to read
+        self.window = DATA_SIZE  # space available in the receiver to read
 
         self.sent_packets = {}
         self.ACKs_left = []  # this list contains all the seq of ACKs pending to be received
 
         self.rtt = 0.5  # save the last rtt time
 
-        self.cwnd = 1
+        # self.cwnd = 1
         self.ssthresh = 10
 
     def log(self, message):
@@ -37,9 +37,9 @@ class Sender:
         """Send a message to the host"""
         self.socket.sendto(json.dumps(message).encode('utf-8'), (self.host, self.remote_port))
 
-    def send_message_with_checksum(self, msg):
+    def send_message_with_checksum(self, msg, seq):
         msg["checksum"] = self.compute_checksum_sender(msg)
-        self.sent_packets[self.seq] = (msg['data'], time.time())
+        self.sent_packets[seq] = (msg['data'], time.time())
         self.send(msg)
 
     def compute_checksum_sender(self, msg_dic):
@@ -102,20 +102,21 @@ class Sender:
                 self.log("All ACK received, exiting")
                 sys.exit(0)
 
-            """if self.waiting:
-                self.log("HA ENTRADO")
-                self.log("ACKS LEFT: " + str(self.ACKs_left))
-                self.log("current RTT: " + str(self.rtt))"""
+            #if self.waiting:
+            self.log("HA ENTRADO")
+            self.log("ACKS LEFT: " + str(self.ACKs_left))
+            self.log("current RTT: " + str(self.rtt))
+            self.log(("current window: " + str(self.window)))
             for seq in self.ACKs_left:
 
                 # use previous rtt to estimate the best timeout
                 if received - self.sent_packets[seq][1] > self.rtt * 2:
                     # timeout has happened, so resend even if we received the packet or not
-                    self.ssthresh = self.cwnd / 2
-                    self.cwnd = 1
+                    self.ssthresh = self.window / 2
+                    self.window = 1
                     msg = {"type": "msg", "seq": seq, "data": self.sent_packets[seq][0]}
                     self.log("Resending message '%s'" % msg)
-                    self.send_message_with_checksum(msg)
+                    self.send_message_with_checksum(msg, seq)
 
             for conn in socks:
                 if conn == self.socket:
@@ -132,16 +133,16 @@ class Sender:
                         if self.check_checksum(checksum_sender, checksum_reciever):
                             # First we check that it is not a duplicate ACK
                             if msg['seq_ACK'] not in self.seq_ACK_set:
-                                if self.cwnd < self.ssthresh:
+                                if self.window < self.ssthresh:
                                     # slow start
-                                    self.cwnd += 1
+                                    self.window += 1
                                 else:
                                     # congestion avoidance
-                                    self.cwnd += (1/self.cwnd)
+                                    self.window += (1/self.window)
 
                                 self.seq_ACK_set.add(msg['seq_ACK'])
                                 # Since it was acknowledged we can enlarge the window size
-                                self.window += DATA_SIZE
+                                self.window += 1
                                 self.ACKs_left.remove(msg['seq_ACK'])
 
                                 # update rtt
@@ -151,7 +152,7 @@ class Sender:
                                 if len(self.ACKs_left) == 0:
                                     # Not waiting for an ACK
                                     self.waiting = False
-                                    self.window = self.cwnd * DATA_SIZE
+                                    # self.window = self.cwnd * DATA_SIZE
                             else:
                                 self.log("Received duplicated ACK with seq = %s" % msg['seq_ACK'])
 
@@ -164,7 +165,7 @@ class Sender:
                 elif conn == sys.stdin:
                     exit = False
                     # Read the data that must be transmited to the receiver
-                    while self.window >= DATA_SIZE and not exit:
+                    while self.window*DATA_SIZE >= DATA_SIZE and not exit:
                         data = sys.stdin.read(DATA_SIZE)
                         # Check if EOF
                         if len(data) == 0:
@@ -174,11 +175,11 @@ class Sender:
                         else:
                             msg = {"type": "msg", "seq": self.seq, "data": data}
                             self.log("Sending message '%s'" % msg)
-                            self.send_message_with_checksum(msg)
+                            self.send_message_with_checksum(msg, self.seq)
 
                             self.ACKs_left.append(self.seq)
                             self.seq += 1
-                            self.window -= DATA_SIZE
+                            self.window -= 1
 
                     # when there is no window available, wait for ACK
                     self.waiting = True
