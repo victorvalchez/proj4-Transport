@@ -25,6 +25,9 @@ class Sender:
 
         self.rtt = 0.5  # save the last rtt time
 
+        self.cwnd = 1
+        self.ssthresh = 10
+
     def log(self, message):
         """Print messages to STDERR"""
         sys.stderr.write(message + "\n")
@@ -108,6 +111,8 @@ class Sender:
                 # use previous rtt to estimate the best timeout
                 if received - self.sent_packets[seq][1] > self.rtt * 2:
                     # timeout has happened, so resend even if we received the packet or not
+                    self.ssthresh = self.cwnd / 2
+                    self.cwnd = 1
                     msg = {"type": "msg", "seq": seq, "data": self.sent_packets[seq][0]}
                     self.log("Resending message '%s'" % msg)
                     self.send_message_with_checksum(msg)
@@ -127,6 +132,13 @@ class Sender:
                         if self.check_checksum(checksum_sender, checksum_reciever):
                             # First we check that it is not a duplicate ACK
                             if msg['seq_ACK'] not in self.seq_ACK_set:
+                                if self.cwnd < self.ssthresh:
+                                    # slow start
+                                    self.cwnd += 1
+                                else:
+                                    # congestion avoidance
+                                    self.cwnd += (1/self.cwnd)
+
                                 self.seq_ACK_set.add(msg['seq_ACK'])
                                 # Since it was acknowledged we can enlarge the window size
                                 self.window += DATA_SIZE
@@ -139,6 +151,7 @@ class Sender:
                                 if len(self.ACKs_left) == 0:
                                     # Not waiting for an ACK
                                     self.waiting = False
+                                    self.window = self.cwnd * DATA_SIZE
                             else:
                                 self.log("Received duplicated ACK with seq = %s" % msg['seq_ACK'])
 
