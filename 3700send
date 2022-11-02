@@ -32,13 +32,20 @@ class Sender:
         """Send a message to the host"""
         self.socket.sendto(json.dumps(message).encode('utf-8'), (self.host, self.remote_port))
 
-    def compute_checksum_sender(self, msg):
-        byte_arr = bytearray(str(msg), 'utf-8')
-        res = []
-        for byte in byte_arr:
-            binary_rep = bin(byte)  # convert to binary representation
-            res.append(binary_rep[2:])  # remove prefix "0b" and add to list
-        msg = ''.join(msg)  # join all the binaries of res list
+    def send_message_with_checksum(self, msg):
+        msg["checksum"] = self.compute_checksum_sender(msg)
+        self.log("checksum: " + str(msg["checksum"]))
+        self.sent_packets[self.seq] = (msg['data'], time.time())
+        self.send(msg)
+
+
+    def compute_checksum_sender(self, msg_dic):
+        
+        msg_st = json.dumps(msg_dic, sort_keys=True)
+        
+        msg = ''.join(format(ord(x), 'b') for x in msg_st)
+
+
         # UDP devides the packet in 16-bit words
         sum = 0
         i = 16
@@ -103,9 +110,10 @@ class Sender:
                     self.log("Started sending: " + str(self.sent_packets[seq][1]))
                     if recevied - self.sent_packets[seq][1] > 1:
                         # timeout has happened
-                        msg = {"type": "msg", "seq": seq, "data": self.sent_packets[seq][0]}
                         self.log("Resending message '%s'" % msg)
-                        self.send(msg)
+                        msg = {"type": "msg", "seq": seq, "data": self.sent_packets[seq][0]}
+                        self.send_message_with_checksum(msg)
+                        
 
             for conn in socks:
                 if conn == self.socket:
@@ -147,12 +155,10 @@ class Sender:
                             # TODO meter el checksum y el json en una lista para coger solo el json cuando hacemos
                             #  checksum de un ack
                             msg = {"type": "msg", "seq": self.seq, "data": data}
-                            msg["checksum"] = self.compute_checksum_sender(msg)
-                            self.sent_packets[self.seq] = (msg['data'], time.time())
                             self.log("Sending message '%s'" % msg)
-                            self.send(msg)
+                            self.send_message_with_checksum(msg)
+    
                             self.ACKs_left.append(self.seq)
-
                             self.seq += 1
                             self.window -= DATA_SIZE
 

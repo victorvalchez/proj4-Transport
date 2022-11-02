@@ -46,8 +46,12 @@ class Receiver:
         # self.log("queue: " + ' '.join(map(str, self.queue)))
 
 
-    def compute_checksum_reciever(self, msg):
+    def compute_checksum_reciever(self, msg_dic):
         #compute checksum of the recieved packet
+
+        msg_st = json.dumps(msg_dic, sort_keys=True)
+        
+        msg = ''.join(format(ord(x), 'b') for x in msg_st)
 
         #UDP devides the packet in 16-bit words
         sum = 0
@@ -62,19 +66,24 @@ class Receiver:
         if(len(sum) > 16):
             x = len(sum)-16
             sum = bin(int(sum[0:x], 2)+int(sum[x:], 2))[2:]
+        if len(sum) < 16:
+            sum = '0' * (16 - len(sum)) + sum
 
         # Calculating the complement of sum
         checksum = ''
         for i in sum:
             if(i == '1'):
-                checksum += '0'
-            else:
                 checksum += '1'
+            else:
+                checksum += '0'
         return checksum
 
 
-    def check_checksum(self, send, receive):
-        sum=bin(int(send,2)+int(receive,2))[2:]
+    def check_checksum(self, send, recieve):
+        
+
+
+        sum=bin(int(send,2)+int(recieve,2))[2:]
  
         # Finding the sum of checksum and received checksum
         result=''
@@ -101,11 +110,15 @@ class Receiver:
                     self.remote_port = addr[1]
                 try:
                     msg = json.loads(data.decode('utf-8'))
+                    self.log("Received data message %s" % msg)
+
+                    #check checksum
                     checksum_sender = msg['checksum']
                     del msg['checksum']
-                    self.log("Received data message %s" % msg)
-                    checksum_receiver = self.compute_checksum_reciever(msg)
-                    if self.check_checksum(checksum_sender, checksum_receiver):
+                    checksum_reciever = self.compute_checksum_reciever(msg)
+                    self.log("checksum: " + str(checksum_reciever))
+
+                    if self.check_checksum(checksum_sender, checksum_reciever):
 
                         if msg['seq'] not in self.seq_set:
                             self.seq_set.add(msg['seq'])
