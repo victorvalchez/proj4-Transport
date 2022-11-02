@@ -23,6 +23,8 @@ class Sender:
         self.sent_packets = {}
         self.ACKs_left = []  # this list contains all the seq of ACKs pending to be received
 
+        self.rtt = 0.5 # save the last rtt time 
+
     def log(self, message):
         """Print messages to STDERR"""
         sys.stderr.write(message + "\n")
@@ -34,7 +36,6 @@ class Sender:
 
     def send_message_with_checksum(self, msg):
         msg["checksum"] = self.compute_checksum_sender(msg)
-        self.log("checksum: " + str(msg["checksum"]))
         self.sent_packets[self.seq] = (msg['data'], time.time())
         self.send(msg)
 
@@ -93,25 +94,24 @@ class Sender:
 
             # set timeout to 1s
             socks = select.select(sockets, [], [], 0.1)[0]
-            recevied = time.time()
+            received = time.time()
             self.log("All sent: " + str(self.all_sent))
-            self.log("Window: " + str(self.window))
 
             if self.all_sent and len(self.ACKs_left) == 0:
                 self.log("All ACK received, exiting")
                 sys.exit(0)
 
-            self.log("SOCKS: " + str(socks))
             if self.waiting:
                 self.log("HA ENTRADO")
-                self.log(str(self.ACKs_left))
+                self.log("ACKS LEFT: " + str(self.ACKs_left))
+                self.log("current RTT: " + str(self.rtt))
                 for seq in self.ACKs_left:
-                    self.log("Received time: " + str(recevied))
-                    self.log("Started sending: " + str(self.sent_packets[seq][1]))
-                    if recevied - self.sent_packets[seq][1] > 1:
-                        # timeout has happened
-                        self.log("Resending message '%s'" % msg)
+
+                    #use previous rtt to estimate the best timeout
+                    if received - self.sent_packets[seq][1] > self.rtt*2:
+                        # timeout has happened, so resend even if we received the packet or not
                         msg = {"type": "msg", "seq": seq, "data": self.sent_packets[seq][0]}
+                        self.log("Resending message '%s'" % msg)
                         self.send_message_with_checksum(msg)
                         
 
@@ -135,7 +135,10 @@ class Sender:
                                 self.window += DATA_SIZE
                                 self.ACKs_left.remove(msg['seq_ACK'])
 
-                                self.log("ACKS LEFT: " + str(self.ACKs_left))
+                                #update rtt
+                                self.rtt = received - self.sent_packets[msg['seq_ACK']][1]
+                                self.log("RTT updated: " + str(self.rtt))
+
                                 if len(self.ACKs_left) == 0:
                                     # Not waiting for an ACK
                                     self.waiting = False
@@ -153,7 +156,6 @@ class Sender:
                     # Read the data that must be transmited to the receiver
                     while self.window >= DATA_SIZE and not exit:
                         data = sys.stdin.read(DATA_SIZE)
-                        self.log(str(type(data)))
                         # Check if EOF
                         if len(data) == 0:
                             exit = True
@@ -172,8 +174,6 @@ class Sender:
 
                     # when there is no window available, wait for ACK
                     self.waiting = True
-
-                self.log(str(self.waiting))
 
         # return
 

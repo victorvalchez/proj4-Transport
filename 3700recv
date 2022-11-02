@@ -43,7 +43,6 @@ class Receiver:
                 exit = True
             else:
                 i += 1
-        # self.log("queue: " + ' '.join(map(str, self.queue)))
 
 
     def compute_checksum_reciever(self, msg_dic):
@@ -114,7 +113,6 @@ class Receiver:
                     checksum_sender = msg['checksum']
                     del msg['checksum']
                     checksum_reciever = self.compute_checksum_reciever(msg)
-                    self.log("checksum: " + str(checksum_reciever))
 
                     if self.check_checksum(checksum_sender, checksum_reciever):
 
