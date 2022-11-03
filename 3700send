@@ -158,12 +158,6 @@ class Sender:
                                     self.waiting = False
                                     # self.window = self.cwnd * DATA_SIZE
                             else:
-                                if self.window < self.ssthresh:
-                                    # slow start
-                                    self.window += 1
-                                else:
-                                    # congestion avoidance
-                                    self.window += (1/self.window)
                                 self.log("Received duplicated ACK with seq = %s" % msg['seq_ACK'])
 
                         else:
