@@ -74,7 +74,7 @@ class Sender:
         self.sent_packets = {}
         self.ACKs_left = []  # This list contains all the seq of ACKs pending to be received
 
-        self.rtt = 1  # Save the last rtt time
+        self.rtt = 0.5  # Save the last rtt time
 
         # self.cwnd = 1
         self.ssthresh = 10
@@ -118,18 +118,20 @@ class Sender:
             # self.log("ACKS LEFT: " + str(self.ACKs_left))
             # self.log("current RTT: " + str(self.rtt))
             # self.log(("current window: " + str(self.window)))
+            timeout = False
 
             for seq in self.ACKs_left:
                 # Use previous rtt to estimate the best timeout
-                if (received - self.sent_packets[seq][1]) > self.rtt * 2:
-                    while self.counter <= self.window:
-                        # Timeout has happened, so resend even if we received the packet or not
-                        self.ssthresh = self.window / 2
-                        self.window = 1
-                        msg = {"type": "msg", "seq": seq, "data": self.sent_packets[seq][0]}
-                        self.log("Resending message '%s'" % msg)
-                        self.send_message_with_checksum(msg, seq)
-                        self.counter += 1
+                if (received - self.sent_packets[seq][1]) > self.rtt * 2 and self.counter <= self.window:
+                    timeout = True
+                    # Timeout has happened, so resend even if we received the packet or not
+                    msg = {"type": "msg", "seq": seq, "data": self.sent_packets[seq][0]}
+                    self.log("Resending message '%s'" % msg)
+                    self.send_message_with_checksum(msg, seq)
+                    self.counter += 1
+            if timeout:
+                self.ssthresh = self.window / 2
+                self.window = 1
             self.counter = 0
 
             for conn in socks:
@@ -153,7 +155,10 @@ class Sender:
                                     self.window += 1
                                 else:
                                     # Congestion avoidance
-                                    self.window += (1 / self.window)
+                                    if self.window >= 1:
+                                        self.window += (1 / self.window)
+                                    else:
+                                        self.window = 1
 
                                 self.seq_ACK_set.add(msg['seq_ACK'])
                                 # Since it was acknowledged we can enlarge the window size
