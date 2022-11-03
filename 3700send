@@ -158,7 +158,7 @@ class Sender:
                                     if self.window >= 1:
                                         self.window += (1 / self.window)
                                     else:
-                                        self.window = 1
+                                        self.window += 1
 
                                 self.seq_ACK_set.add(msg['seq_ACK'])
                                 # Since it was acknowledged we can enlarge the window size
