@@ -67,7 +67,7 @@ class Receiver:
         # queue of packets that arrive at the wrong time
         self.queue = []
         # last seq read in the right order
-        self.seq_number = 0
+        self.seq_number = 1
 
         self.remote_host = None
         self.remote_port = None
@@ -120,7 +120,7 @@ class Receiver:
                         if msg['seq'] not in self.seq_set:
                             self.seq_set.add(msg['seq'])
 
-                            # Check we received the  messages in order
+                            # Check we received the messages in order
                             if msg['seq'] == self.seq_number:
                                 # Print out the data to stdout
                                 self.log("Printed message with seq " + str(msg["seq"]))
@@ -143,13 +143,13 @@ class Receiver:
                                 # Add element to the queue of wrong order
                                 self.add_elem_to_queue(msg)
 
-                            self.log("RECV | Sending message {type: ack, seq_ACK: " + str(msg['seq']) + "}")
+                            self.log("RECV | Sending message {type: ack, seq_ACK: " + str(self.seq_number-1) + "}")
 
                         else:
                             self.log("Received duplicated packet with seq = %s" % msg['seq'])
 
-                        # Always send an ACK back
-                        ACK_msg = {"type": "ack", "seq_ACK": msg['seq']}
+                        # Always send an ACK back, with the las seq number in order
+                        ACK_msg = {"type": "ack", "seq_ACK": self.seq_number-1}
                         ACK_msg["checksum"] = compute_checksum_reciever(ACK_msg)
                         self.send(ACK_msg)
 
