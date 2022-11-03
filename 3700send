@@ -76,6 +76,10 @@ class Sender:
         self.last_ACK = 0 # last ACK received 
 
         self.rtt = 1  # Save the last rtt time
+        self.time_init=0
+        self.time_end=0
+
+        self.duplicate_ACKS = 0 # counter of duplicate ACKs to implement TCP Reno
 
         self.ssthresh = 10
 
@@ -110,20 +114,20 @@ class Sender:
             # self.log("ACKS LEFT: " + str(self.ACKs_left))
             # self.log("current RTT: " + str(self.rtt))
             # self.log(("current window: " + str(self.window)))
-            timeout = False
 
-            for seq in self.ACKs_left:
-                # Use previous rtt to estimate the best timeout
-                if (received - self.sent_packets[seq][1]) > self.rtt * 2:
-                    while self.counter <= self.window:
-                        # Timeout has happened, so resend even if we received the packet or not
-                        self.ssthresh = self.window / 2
-                        self.window = 1
-                        msg = {"type": "msg", "seq": seq, "data": self.sent_packets[seq][0]}
+            if self.waiting and self.last_ACK < self.seq-1:
+                if (self.time_end - self.time_init) > self.rtt * 2:
+                    #time-out has occured, resend all the remaining packets
+
+                    for seq in range(self.last_ACK+1, self.seq):
+                        msg = {"type": "msg", "seq": seq, "data": self.sent_packets[seq]}
                         self.log("Resending message '%s'" % msg)
                         self.send_message_with_checksum(msg, seq)
-                        self.counter += 1
-            self.counter = 0
+                    
+                    self.time_init = time.time()
+
+                    self.ssthresh = max(self.window / 2, 1)
+                    self.window = 1
 
             for conn in socks:
                 if conn == self.socket:
@@ -149,6 +153,7 @@ class Sender:
                                     self.window += 1
                                 else:
                                     # Congestion avoidance
+
                                     self.window += (1 / self.window)
 
                                 # Since it was acknowledged we can enlarge the window size
