@@ -44,56 +44,52 @@ class Receiver:
             else:
                 i += 1
 
-
     def compute_checksum_reciever(self, msg_dic):
-        #compute checksum of the recieved packet
+        # compute checksum of the recieved packet
 
         msg_st = json.dumps(msg_dic, sort_keys=True)
-        
+
         msg = ''.join(format(ord(x), 'b') for x in msg_st)
 
-        #UDP devides the packet in 16-bit words
+        # UDP devides the packet in 16-bit words
         sum = 0
-        i=16
-        while i<len(msg):
-            sum += int(msg[i-16:i], 2)
-            i+=16
+        i = 16
+        while i < len(msg):
+            sum += int(msg[i - 16:i], 2)
+            i += 16
 
         sum = bin(sum)
 
         # Add the overflow bits
-        if(len(sum) > 16):
-            x = len(sum)-16
-            sum = bin(int(sum[0:x], 2)+int(sum[x:], 2))[2:]
+        if (len(sum) > 16):
+            x = len(sum) - 16
+            sum = bin(int(sum[0:x], 2) + int(sum[x:], 2))[2:]
         if len(sum) < 16:
             sum = '0' * (16 - len(sum)) + sum
 
         # Calculating the complement of sum
         checksum = ''
         for i in sum:
-            if(i == '1'):
+            if (i == '1'):
                 checksum += '1'
             else:
                 checksum += '0'
         return checksum
 
-
     def check_checksum(self, send, recieve):
-        
-        sum=bin(int(send,2)+int(recieve,2))[2:]
- 
+
+        sum = bin(int(send, 2) + int(recieve, 2))[2:]
+
         # Finding the sum of checksum and received checksum
-        result=''
+        result = ''
         for i in sum:
-            if(i == '1'):
+            if (i == '1'):
                 result += '0'
             else:
                 result += '1'
-        
+
         # If sum = 0, No error is detected
-        return int(result,2) == 0
-
-
+        return int(result, 2) == 0
 
     def run(self):
         while True:
@@ -109,7 +105,7 @@ class Receiver:
                     msg = json.loads(data.decode('utf-8'))
                     self.log("Received data message %s" % msg)
 
-                    #check checksum
+                    # check checksum
                     checksum_sender = msg['checksum']
                     del msg['checksum']
                     checksum_reciever = self.compute_checksum_reciever(msg)
@@ -142,12 +138,11 @@ class Receiver:
                                 # add element to the queue
                                 self.add_elem_to_queue(msg)
 
-                            
                             self.log("RECV | Sending message {type: ack, seq_ACK: " + str(msg['seq']) + "}")
 
                         else:
                             self.log("Received duplicated packet with seq = %s" % msg['seq'])
-                        
+
                         # Always send an ACK back
                         ACK_msg = {"type": "ack", "seq_ACK": msg['seq']}
                         ACK_msg["checksum"] = self.compute_checksum_reciever(ACK_msg)
@@ -158,8 +153,6 @@ class Receiver:
 
                 except (ValueError, KeyError, TypeError):
                     self.log("Received corrupt packet")
-
-
 
         # return
 
