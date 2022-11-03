@@ -69,7 +69,7 @@ class Sender:
         self.all_sent = False
 
         self.seq = 0  # Number of readen bytes acknowledged by the receiver
-        self.window = DATA_SIZE  # Space available in the receiver to read
+        self.window = 1  # Space available in the receiver to read
 
         self.sent_packets = {}
         self.ACKs_left = []  # This list contains all the seq of ACKs pending to be received
@@ -87,7 +87,7 @@ class Sender:
 
     def send(self, message):
         """Send a message to the host"""
-        # TODO Pack the data into a struct
+        # TODO Pack the data into a struce
         # self.socket.sendto(json.dumps(message).encode('utf-8'), (self.host, self.remote_port))
         pass
 
@@ -180,7 +180,9 @@ class Sender:
                 elif conn == sys.stdin:
                     exit_flag = False
                     # Read the data that must be transmited to the receiver
+                    # self.log('window ' + str(self.window))
                     while self.window * DATA_SIZE >= DATA_SIZE and not exit_flag:
+                        # self.log(str(self.window * DATA_SIZE))
                         data = sys.stdin.read(DATA_SIZE)
                         # Check if EOF
                         if len(data) == 0:
