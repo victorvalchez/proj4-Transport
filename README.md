@@ -7,7 +7,7 @@ The code will transfer a file reliably between two nodes (a sender and a receive
 We started with the code provided by the professors, which implements both sender and receiver files with their corresponding classes and methods. These include the _log_, _send_, and _run_ that print out to STDERR, send a message through the socket, and run the program respectively. 
 
 #### Receiver
-The _run_ method in the _3700recv_ program, checks if the received message can be loaded as a JSON and then sees if the message received corresponds to the one sent by the sender with the use of the _checksum_ method. If the previous two conditions are met we check if the message received is in order and if it is we print it out, otherwise we add it to a queue of messages sent in the wrong order. After checking if it is in order we go through this queue checking if any of those can be printed because they correspond with the right order and do so. After this process we always send an acknowledgement back, that contains the last sequence number received in the right order.
+The _run_ method in the _3700recv_ program, checks if the received message can be loaded as a JSON and then sees if the message received corresponds to the one sent by the sender with the use of the _checksum_ method. If the previous two conditions are met we check if the message received is in order and if it is we print it out, otherwise we add it to a queue of messages sent in the wrong order. After checking if it is in order we go through this queue checking if any of those can be printed because they correspond with the proper order and do so. After this process we always send an acknowledgement back, that contains the last sequence number received in the proper order.
 
 To check if both sent and received messages correspond we perform checksum, checking if the message sent and received have a complementary representation in binary, meaning the sum of both is all ones.
 
@@ -19,7 +19,7 @@ Finally, if there are no ACKs pending to be received then we stop waiting for th
 
 - If there are bytes to send (i.e. self.waiting == False), while the window is big enough to send packets, we read the data from STDIN, in case there is no more data, we exit the loop to send data, otherwise we send the data.
 
-If timeout has occurred, it is managed at the beginning of the while loop. There we check if the last ACK received is lower than the last sequence number sent. If that’s the case, and the time that has passed is two times the RTT, then we resend all the message from the last acknowledged (not included) to the last sended. We also update ssthresh and window accordingly, following the protocol of TCP Tahoe.
+If timeout has occurred, it is managed at the beginning of the while loop. There we check if the last ACK received is lower than the previous sequence number sent. If that’s the case, and the time that has passed is two times the RTT, then we resend all the message from the last acknowledged (not included) to the previous sent. We also update ssthresh and window accordingly, following the protocol of TCP Tahoe.
 
 Finally, the sender exits when all the data was sent and there are no ACKs left to receive.
  
